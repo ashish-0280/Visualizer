@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clean Sorting Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- --- STYLES (CSS) --- -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .bar {
+            /* Smooth transitions for height and color changes */
+            transition: height 0.2s ease, background-color 0.2s ease;
+        }
+        /* Custom styles to hide default dropdown arrow and add our own */
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%239ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>');
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1.2em 1.2em;
+            padding-right: 2.5rem;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- --- HTML STRUCTURE --- -->
+    <main class="w-full max-w-6xl mx-auto bg-slate-800 rounded-2xl shadow-2xl p-6 md:p-8">
+        
+        <header class="text-center mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold text-cyan-400">Sorting Visualizer</h1>
+            <p class="text-slate-400 mt-2">Watch sorting algorithms in action.</p>
+        </header>
+
+        <!-- The container where the bars will be drawn -->
+        <div id="chartContainer" class="w-full h-48 md:h-80 flex items-end justify-center border-2 border-slate-700 rounded-lg p-2 bg-slate-900/50"></div>
+        
+        <!-- All user controls are here -->
+        <div id="controls" class="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 items-center">
+            
+            <div class="flex flex-col space-y-2">
+                <label for="arraySizeSlider" class="text-sm font-medium">Array Size: <span id="arraySizeLabel">50</span></label>
+                <input id="arraySizeSlider" type="range" min="5" max="150" value="50" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <div class="flex flex-col space-y-2">
+                <label for="animationSpeedSlider" class="text-sm font-medium">Speed: <span id="animationSpeedLabel">50</span></label>
+                <input id="animationSpeedSlider" type="range" min="1" max="500" value="50" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+            </div>
+            
+            <div class="flex flex-col space-y-2 md:col-span-2 lg:col-span-1">
+                <label for="algorithmDropdown" class="text-sm font-medium">Algorithm</label>
+                <select id="algorithmDropdown" class="w-full px-4 py-3 bg-slate-700 font-semibold rounded-lg shadow-md">
+                    <option value="bubble">Bubble Sort</option>
+                    <option value="selection">Selection Sort</option>
+                    <option value="insertion">Insertion Sort</option>
+                    <option value="merge">Merge Sort</option>
+                    <option value="quick">Quick Sort</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-4 lg:col-span-2 justify-end items-center pt-2">
+                 <button id="newArrayButton" class="w-full sm:w-auto px-6 py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold rounded-lg shadow-md">
+                    New Array
+                </button>
+                <button id="startSortButton" class="w-full sm:w-auto px-6 py-3 bg-green-500 hover:bg-green-400 text-slate-900 font-semibold rounded-lg shadow-md">
+                    Start Sort
+                </button>
+            </div>
+
+            <!-- Row 2 for custom input -->
+            <div class="flex flex-col space-y-2 md:col-span-2 lg:col-span-4">
+                <label for="customArrayInput" class="text-sm font-medium">Custom Array (e.g., 5, 23, 12, 45)</label>
+                <input id="customArrayInput" type="text" placeholder="Enter comma-separated numbers and click 'Use My Array'" class="w-full px-4 py-2.5 bg-slate-700 rounded-lg text-white placeholder-slate-400">
+            </div>
+            <div class="flex items-end h-full pt-2">
+                 <button id="useCustomArrayButton" class="w-full px-6 py-3 bg-indigo-500 hover:bg-indigo-400 text-white font-semibold rounded-lg shadow-md">
+                    Use My Array
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- --- JAVASCRIPT LOGIC --- -->
+    <script>
+        // --- Get Elements from HTML ---
+        const chartContainer = document.getElementById('chartContainer');
+        const newArrayButton = document.getElementById('newArrayButton');
+        const startSortButton = document.getElementById('startSortButton');
+        const arraySizeSlider = document.getElementById('arraySizeSlider');
+        const animationSpeedSlider = document.getElementById('animationSpeedSlider');
+        const arraySizeLabel = document.getElementById('arraySizeLabel');
+        const animationSpeedLabel = document.getElementById('animationSpeedLabel');
+        const algorithmDropdown = document.getElementById('algorithmDropdown');
+        const allControls = document.getElementById('controls');
+        const customArrayInput = document.getElementById('customArrayInput');
+        const useCustomArrayButton = document.getElementById('useCustomArrayButton');
+
+
+        // --- Global State ---
+        let numberArray = [];
+        let arraySize = arraySizeSlider.value;
+        let animationDelay = animationSpeedSlider.value;
+        
+        // --- Bar Colors ---
+        const COLOR_PRIMARY = '#22d3ee'; // Default bar color
+        const COLOR_COMPARE = '#f43f5e'; // Color for bars being compared
+        const COLOR_SWAP = '#34d399';    // Color for bars being swapped
+        const COLOR_SORTED = '#10b981';  // Color for sorted bars
+        const COLOR_PIVOT = '#a855f7';   // Color for pivot elements in Quick Sort
+
+        // --- Core Functions ---
+
+        // A helper function to pause execution for a set amount of time.
+        const pause = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        // Disable or enable all buttons and sliders.
+        const setControlsDisabled = (isDisabled) => {
+            allControls.querySelectorAll('input, select, button').forEach(element => {
+                element.disabled = isDisabled;
+            });
+        };
+        
+        // Creates a new array of random numbers.
+        const createNewArray = () => {
+            arraySizeSlider.disabled = false; // Re-enable the slider
+            arraySize = arraySizeSlider.value;
+            arraySizeLabel.textContent = arraySize;
+            numberArray = [];
+            for (let i = 0; i < arraySize; i++) {
+                numberArray.push(Math.floor(Math.random() * 90) + 10);
+            }
+            customArrayInput.value = ''; // Clear custom input field
+            drawBars();
+        };
+
+        // Draws the bars on the screen based on the numberArray, scaling them automatically.
+        const drawBars = () => {
+            chartContainer.innerHTML = '';
+            if (numberArray.length === 0) return;
+
+            const maxValue = Math.max(...numberArray); // Find the largest number for scaling
+
+            numberArray.forEach(value => {
+                const bar = document.createElement('div');
+                // Use flexbox to help position the number inside the bar
+                bar.className = 'bar flex-1 mx-px flex flex-col justify-start items-center pt-2 rounded-t-sm';
+                
+                const scaledHeight = (value / maxValue) * 100;
+                bar.style.height = `${Math.max(scaledHeight, 5)}%`; // Use at least 5% height
+                bar.style.backgroundColor = COLOR_PRIMARY;
+
+                // Create the number label
+                const numberLabel = document.createElement('span');
+                numberLabel.className = 'text-2xl font-extrabold text-white';
+                numberLabel.style.textShadow = '0 1px 2px rgba(0,0,0,0.5)';
+                numberLabel.textContent = value;
+
+                // Hide the number if the bar is too short to read it
+                if (scaledHeight < 18) {
+                    numberLabel.style.visibility = 'hidden';
+                }
+
+                bar.appendChild(numberLabel);
+                chartContainer.appendChild(bar);
+            });
+        };
+
+        // --- Sorting Algorithms ---
+
+        async function bubbleSort() {
+            const bars = chartContainer.children;
+            for (let i = 0; i < numberArray.length - 1; i++) {
+                for (let j = 0; j < numberArray.length - i - 1; j++) {
+                    bars[j].style.backgroundColor = COLOR_COMPARE;
+                    bars[j + 1].style.backgroundColor = COLOR_COMPARE;
+                    await pause(animationDelay);
+
+                    if (numberArray[j] > numberArray[j + 1]) {
+                        [numberArray[j], numberArray[j + 1]] = [numberArray[j + 1], numberArray[j]]; // Swap
+                        drawBars(); // Redraw to handle scaling and number display
+                        bars[j].style.backgroundColor = COLOR_SWAP;
+                        bars[j + 1].style.backgroundColor = COLOR_SWAP;
+                        await pause(animationDelay);
+                    }
+                    // We call drawBars() on swap, so we just need to recolor sorted elements
+                    drawBars();
+                }
+                bars[numberArray.length - 1 - i].style.backgroundColor = COLOR_SORTED;
+            }
+            if (bars[0]) bars[0].style.backgroundColor = COLOR_SORTED;
+        }
+
+        async function selectionSort() {
+            const bars = chartContainer.children;
+            for (let i = 0; i < numberArray.length - 1; i++) {
+                let minIndex = i;
+                bars[i].style.backgroundColor = COLOR_PIVOT; 
+                for (let j = i + 1; j < numberArray.length; j++) {
+                    bars[j].style.backgroundColor = COLOR_COMPARE;
+                    await pause(animationDelay);
+                    if (numberArray[j] < numberArray[minIndex]) {
+                        if (minIndex !== i) bars[minIndex].style.backgroundColor = COLOR_PRIMARY;
+                        minIndex = j;
+                        bars[minIndex].style.backgroundColor = COLOR_SWAP;
+                    } else {
+                       bars[j].style.backgroundColor = COLOR_PRIMARY;
+                    }
+                }
+                if (minIndex !== i) {
+                    await pause(animationDelay);
+                    [numberArray[i], numberArray[minIndex]] = [numberArray[minIndex], numberArray[i]]; // Swap
+                    drawBars();
+                }
+                bars[i].style.backgroundColor = COLOR_SORTED;
+            }
+            if (bars[numberArray.length - 1]) bars[numberArray.length - 1].style.backgroundColor = COLOR_SORTED;
+        }
+
+        async function insertionSort() {
+            const bars = chartContainer.children;
+            bars[0].style.backgroundColor = COLOR_SORTED;
+            for (let i = 1; i < numberArray.length; i++) {
+                let key = numberArray[i];
+                let j = i - 1;
+                drawBars(); // Redraw to reset colors from previous step
+                for(let k=0; k<i; k++) bars[k].style.backgroundColor = COLOR_SORTED;
+                bars[i].style.backgroundColor = COLOR_COMPARE;
+                await pause(animationDelay);
+
+                while (j >= 0 && numberArray[j] > key) {
+                    numberArray[j + 1] = numberArray[j];
+                    drawBars();
+                    for(let k=0; k<i; k++) bars[k].style.backgroundColor = COLOR_SORTED;
+                    bars[j].style.backgroundColor = COLOR_SWAP;
+                    bars[j + 1].style.backgroundColor = COLOR_SWAP;
+                    await pause(animationDelay);
+                    j--;
+                }
+                numberArray[j + 1] = key;
+                drawBars();
+                for(let k=0; k<=i; k++) bars[k].style.backgroundColor = COLOR_SORTED;
+            }
+        }
+
+        async function mergeSort(left, right) {
+            if (left >= right) return;
+            const middle = left + Math.floor((right - left) / 2);
+            await mergeSort(left, middle);
+            await mergeSort(middle + 1, right);
+            await merge(left, middle, right);
+             // After a section is merged, redraw to show it's sorted
+            drawBars();
+            const bars = chartContainer.children;
+            for (let i = 0; i < numberArray.length; i++) {
+                if (i >= left && i <= right) {
+                    bars[i].style.backgroundColor = COLOR_SORTED;
+                }
+            }
+        }
+        
+        async function merge(left, middle, right) {
+            const bars = chartContainer.children;
+            const leftArray = numberArray.slice(left, middle + 1);
+            const rightArray = numberArray.slice(middle + 1, right + 1);
+            let i = 0, j = 0, k = left;
+
+            while (i < leftArray.length && j < rightArray.length) {
+                drawBars(); // Full redraw to manage colors correctly
+                for(let z=0; z<left; z++) if(bars[z]) bars[z].style.backgroundColor = COLOR_SORTED;
+
+                if (bars[left + i]) bars[left + i].style.backgroundColor = COLOR_COMPARE;
+                if (bars[middle + 1 + j]) bars[middle + 1 + j].style.backgroundColor = COLOR_COMPARE;
+                await pause(animationDelay);
+
+                if (leftArray[i] <= rightArray[j]) {
+                    numberArray[k] = leftArray[i]; i++;
+                } else {
+                    numberArray[k] = rightArray[j]; j++;
+                }
+                k++;
+            }
+            while (i < leftArray.length) {
+                numberArray[k] = leftArray[i]; i++; k++;
+            }
+            while (j < rightArray.length) {
+                numberArray[k] = rightArray[j]; j++; k++;
+            }
+        }
+        
+        async function quickSort(low, high) {
+             if (low < high) {
+                let pivotIndex = await partition(low, high);
+                await quickSort(low, pivotIndex - 1);
+                await quickSort(pivotIndex + 1, high);
+            } else {
+                 if (low >= 0 && high >= 0 && low < numberArray.length && high < numberArray.length) {
+                    const bars = chartContainer.children;
+                    if(bars[high]) bars[high].style.backgroundColor = COLOR_SORTED;
+                    if(bars[low]) bars[low].style.backgroundColor = COLOR_SORTED;
+                }
+            }
+        }
+
+        async function partition(low, high) {
+            const bars = chartContainer.children;
+            let pivot = numberArray[high];
+            if(bars[high]) bars[high].style.backgroundColor = COLOR_PIVOT;
+            let i = (low - 1);
+
+            for (let j = low; j <= high - 1; j++) {
+                if(bars[j]) bars[j].style.backgroundColor = COLOR_COMPARE;
+                await pause(animationDelay);
+                if (numberArray[j] < pivot) {
+                    i++;
+                    [numberArray[i], numberArray[j]] = [numberArray[j], numberArray[i]]; // Swap
+                    drawBars();
+                    if(bars[i]) bars[i].style.backgroundColor = COLOR_SWAP;
+                    if(bars[high]) bars[high].style.backgroundColor = COLOR_PIVOT; // Keep pivot color
+                    await pause(animationDelay);
+                }
+            }
+            [numberArray[i + 1], numberArray[high]] = [numberArray[high], numberArray[i + 1]]; // Final pivot swap
+            drawBars();
+            
+            return (i + 1);
+        }
+
+        // --- Event Listeners ---
+
+        newArrayButton.addEventListener('click', createNewArray);
+
+        useCustomArrayButton.addEventListener('click', () => {
+            const inputText = customArrayInput.value;
+            if (!inputText) return;
+
+            const parsedArray = inputText
+                .split(',')
+                .map(item => Number(item.trim()))
+                .filter(item => !isNaN(item) && item > 0);
+
+            if (parsedArray.length > 0) {
+                numberArray = parsedArray;
+                arraySize = parsedArray.length;
+                arraySizeSlider.value = arraySize;
+                arraySizeLabel.textContent = arraySize;
+                arraySizeSlider.disabled = true;
+                drawBars();
+            } else {
+                customArrayInput.value = 'Invalid input. Please use positive, comma-separated numbers.';
+                setTimeout(() => { customArrayInput.value = ''; }, 2000);
+            }
+        });
+
+        startSortButton.addEventListener('click', async () => {
+            setControlsDisabled(true);
+            const selectedAlgorithm = algorithmDropdown.value;
+            
+            switch (selectedAlgorithm) {
+                case 'bubble':    await bubbleSort(); break;
+                case 'selection': await selectionSort(); break;
+                case 'insertion': await insertionSort(); break;
+                case 'merge':     await mergeSort(0, numberArray.length - 1); break;
+                case 'quick':     await quickSort(0, numberArray.length - 1); break;
+            }
+            // Final redraw to ensure everything is sorted color
+            const bars = chartContainer.children;
+            for(let i=0; i<bars.length; i++) {
+                bars[i].style.backgroundColor = COLOR_SORTED;
+            }
+            setControlsDisabled(false);
+        });
+
+        arraySizeSlider.addEventListener('input', (event) => {
+            arraySize = event.target.value;
+            arraySizeLabel.textContent = arraySize;
+            createNewArray();
+        });
+
+        animationSpeedSlider.addEventListener('input', (event) => {
+            animationDelay = 501 - event.target.value;
+            animationSpeedLabel.textContent = event.target.value;
+        });
+
+        // --- Initial Page Load ---
+        function initialize() {
+            arraySizeLabel.textContent = arraySizeSlider.value;
+            animationSpeedLabel.textContent = animationSpeedSlider.value;
+            animationDelay = 501 - animationSpeedSlider.value;
+            createNewArray();
+        }
+
+        window.onload = initialize;
+    </script>
+</body>
+</html>
